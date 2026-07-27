@@ -92,8 +92,8 @@ def read_docker_containers() -> list[dict[str, str]]:
             state = c.attrs.get("State", {}).get("Status", status)
             containers.append(
                 {
-                    "name": c.name[:14],
-                    "status": status[:28],
+                    "name": c.name[:18],
+                    "status": status[:40],
                     "state": state,
                 }
             )
