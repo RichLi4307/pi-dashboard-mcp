@@ -1,0 +1,23 @@
+services:
+  pi-dashboard-mcp:
+    container_name: pi-dashboard-mcp
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:${MCP_PORT:-18473}:${MCP_PORT:-18473}"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /run/pi_dashboard:/run/pi_dashboard
+    restart: unless-stopped
+    networks:
+      - astrbot_network
+
+networks:
+  astrbot_network:
+    name: astrbot_astrbot_network
+    external: true

@@ -1,0 +1,16 @@
+[Unit]
+Description=Pi Dashboard MCP Server for AstrBot
+After=docker.service pi-dashboard.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/richli/pi-dashboard-mcp/deploy
+ExecStart=/usr/bin/docker compose -f /home/richli/pi-dashboard-mcp/deploy/docker-compose.yml up -d --build
+ExecStop=/usr/bin/docker compose -f /home/richli/pi-dashboard-mcp/deploy/docker-compose.yml down
+User=richli
+Group=richli
+
+[Install]
+WantedBy=multi-user.target

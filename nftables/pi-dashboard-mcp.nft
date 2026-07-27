@@ -1,0 +1,8 @@
+# Pi Dashboard MCP Server 反代规则
+# 需要合并到 /etc/nftables-astrbot-proxy.conf 中
+
+# Tailscale 入口
+ip saddr 100.64.0.0/10 ip daddr 100.118.236.1 tcp dport 18473 dnat to 127.0.0.1:18473
+
+# 局域网 eth0 入口
+ip saddr 192.168.137.0/24 ip daddr 192.168.137.10 tcp dport 18473 dnat to 127.0.0.1:18473
