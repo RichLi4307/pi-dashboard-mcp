@@ -2,7 +2,7 @@ services:
   pi-dashboard-mcp:
     container_name: pi-dashboard-mcp
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     env_file:
       - .env
@@ -13,6 +13,7 @@ services:
       - /sys:/host/sys:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /run/pi_dashboard:/run/pi_dashboard
+      - /usr/bin/tailscale:/usr/bin/tailscale:ro
     restart: unless-stopped
     networks:
       - astrbot_network

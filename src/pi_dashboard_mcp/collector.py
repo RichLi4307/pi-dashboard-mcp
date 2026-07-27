@@ -81,20 +81,25 @@ def read_disk_usage() -> dict[str, float]:
 
 
 def read_docker_containers() -> list[dict[str, str]]:
-    out = _run(
-        ["docker", "ps", "-a", "--format", "{{.Names}}|{{.Status}}|{{.State}}"],
-        timeout=5.0,
-    )
-    containers: list[dict[str, str]] = []
-    for line in out.splitlines():
-        parts = line.split("|", 2)
-        if len(parts) != 3:
-            continue
-        name, status, state = parts
-        containers.append(
-            {"name": name[:14], "status": status[:28], "state": state}
-        )
-    return containers
+    try:
+        import docker
+
+        client = docker.DockerClient(base_url="unix:///var/run/docker.sock")
+        containers: list[dict[str, str]] = []
+        for c in client.containers.list(all=True):
+            status = c.status
+            state = c.attrs.get("State", {}).get("Status", status)
+            containers.append(
+                {
+                    "name": c.name[:14],
+                    "status": status[:28],
+                    "state": state,
+                }
+            )
+        return containers
+    except Exception as exc:
+        logger.warning("Docker container query failed: %s", exc)
+        return []
 
 
 def read_tailscale_status() -> str:

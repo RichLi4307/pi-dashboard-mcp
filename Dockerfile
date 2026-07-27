@@ -2,9 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install docker CLI for container queries
+# Keep image minimal; docker queries use the Python SDK over docker.sock.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    docker.io \
     net-tools \
     && rm -rf /var/lib/apt/lists/*
 
