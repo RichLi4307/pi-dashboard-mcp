@@ -7,7 +7,7 @@ from typing import Any
 
 from mcp.types import Tool, TextContent
 
-from .collector import get_system_status, read_docker_containers
+from .collector import cache
 from .ipc_client import get_screenshot, scroll_containers, switch_mode
 
 
@@ -53,12 +53,10 @@ def list_tools() -> list[Tool]:
 
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     if name == "pi_get_system_status":
-        data = get_system_status()
-        return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False))]
+        return [TextContent(type="text", text=cache.get_status_json())]
 
     if name == "pi_get_container_list":
-        data = read_docker_containers()
-        return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False))]
+        return [TextContent(type="text", text=cache.get_containers_json())]
 
     if name == "pi_get_dashboard_screenshot":
         data = await get_screenshot()

@@ -1,7 +1,15 @@
-"""System metrics collector for Pi Dashboard MCP."""
+"""System metrics collector for Pi Dashboard MCP.
+
+This module keeps a small in-memory cache that is refreshed by a background
+task. Tool handlers return cached values instead of hitting ``/proc``,
+``docker`` and ``tailscale`` on every request, which avoids CPU spikes on the
+Pi when AstrBot calls the tools repeatedly.
+"""
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -11,6 +19,9 @@ from datetime import datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_STATUS_INTERVAL = 3.0
+DEFAULT_CONTAINER_INTERVAL = 6.0
 
 
 def _run(args: list[str], timeout: float = 5.0) -> str:
@@ -79,28 +90,6 @@ def read_disk_usage() -> dict[str, float]:
     except OSError as exc:
         logger.debug("Disk stat failed: %s", exc)
         return {}
-
-
-def read_docker_containers() -> list[dict[str, str]]:
-    try:
-        import docker
-
-        client = docker.DockerClient(base_url="unix:///var/run/docker.sock")
-        containers: list[dict[str, str]] = []
-        for c in client.containers.list(all=True):
-            status = c.status
-            state = c.attrs.get("State", {}).get("Status", status)
-            containers.append(
-                {
-                    "name": c.name[:18],
-                    "status": status[:40],
-                    "state": state,
-                }
-            )
-        return containers
-    except Exception as exc:
-        logger.warning("Docker container query failed: %s", exc)
-        return []
 
 
 def read_tailscale_status() -> str:
@@ -175,26 +164,152 @@ class CpuSampler:
         return stats
 
 
-_cpu_sampler = CpuSampler()
+def read_docker_containers() -> list[dict[str, str]]:
+    """Return running and stopped containers using the Docker Python SDK.
+
+    The client is created lazily and reused to avoid the import/creation
+    overhead on every request.
+    """
+    try:
+        import docker
+
+        client = _docker_client()
+        containers: list[dict[str, str]] = []
+        for c in client.containers.list(all=True):
+            status = c.status
+            state = c.attrs.get("State", {}).get("Status", status)
+            containers.append(
+                {
+                    "name": c.name[:18],
+                    "status": status[:40],
+                    "state": state,
+                }
+            )
+        return containers
+    except Exception as exc:
+        logger.warning("Docker container query failed: %s", exc)
+        return []
 
 
-def get_system_status() -> dict[str, Any]:
-    # The sampler needs two samples to compute usage. Prime it and, if this
-    # is the first call, wait a short interval before reading the real value.
-    first = _cpu_sampler.read()
-    if first and all(v == 0.0 for v in first.values()):
-        time.sleep(0.2)
-        cpu = _cpu_sampler.read()
-    else:
-        cpu = first
+_docker_client_instance = None
 
-    return {
-        "timestamp": datetime.now().isoformat(),
-        "hostname": os.uname().nodename,
-        "cpu": cpu,
-        "temperature": read_cpu_temp(),
-        "memory": read_mem_info(),
-        "disk": read_disk_usage(),
-        "ips": get_ip_list(),
-        "tailscale": read_tailscale_status(),
-    }
+
+def _docker_client():
+    global _docker_client_instance
+    if _docker_client_instance is None:
+        import docker
+
+        _docker_client_instance = docker.DockerClient(
+            base_url="unix:///var/run/docker.sock"
+        )
+    return _docker_client_instance
+
+
+class MetricsCache:
+    """Async cache refreshed by a background task."""
+
+    def __init__(
+        self,
+        status_interval: float = DEFAULT_STATUS_INTERVAL,
+        container_interval: float = DEFAULT_CONTAINER_INTERVAL,
+    ) -> None:
+        self.status_interval = status_interval
+        self.container_interval = container_interval
+        self._status: dict[str, Any] = {}
+        self._status_json: str = "{}"
+        self._containers: list[dict[str, str]] = []
+        self._containers_json: str = "[]"
+        self._status_ts = 0.0
+        self._containers_ts = 0.0
+        self._task: asyncio.Task | None = None
+        self._stop = asyncio.Event()
+        self._cpu_sampler = CpuSampler()
+
+    def start(self) -> None:
+        if self._task is not None:
+            return
+        self._task = asyncio.create_task(self._loop())
+        logger.info("Metrics cache background loop started")
+
+    async def stop(self) -> None:
+        if self._task is None:
+            return
+        self._stop.set()
+        self._task.cancel()
+        try:
+            await self._task
+        except asyncio.CancelledError:
+            pass
+        self._task = None
+        logger.info("Metrics cache background loop stopped")
+
+    async def _loop(self) -> None:
+        # Prime CPU sampler so the first published value is real instead of 0.
+        self._cpu_sampler.read()
+        await asyncio.sleep(0.2)
+        await self._refresh_status()
+        await self._refresh_containers()
+
+        while not self._stop.is_set():
+            try:
+                await asyncio.wait_for(
+                    self._stop.wait(), timeout=self.status_interval
+                )
+                return
+            except asyncio.TimeoutError:
+                pass
+
+            try:
+                await self._refresh_status()
+            except Exception:
+                logger.exception("Failed to refresh system status")
+
+            if (
+                time.time() - self._containers_ts
+                >= self.container_interval
+            ):
+                try:
+                    await self._refresh_containers()
+                except Exception:
+                    logger.exception("Failed to refresh container list")
+
+    async def _refresh_status(self) -> None:
+        loop = asyncio.get_running_loop()
+        status = await loop.run_in_executor(None, self._collect_status)
+        self._status = status
+        self._status_json = json.dumps(status, ensure_ascii=False)
+        self._status_ts = time.time()
+
+    def _collect_status(self) -> dict[str, Any]:
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "hostname": os.uname().nodename,
+            "cpu": self._cpu_sampler.read(),
+            "temperature": read_cpu_temp(),
+            "memory": read_mem_info(),
+            "disk": read_disk_usage(),
+            "ips": get_ip_list(),
+            "tailscale": read_tailscale_status(),
+        }
+
+    async def _refresh_containers(self) -> None:
+        loop = asyncio.get_running_loop()
+        containers = await loop.run_in_executor(None, read_docker_containers)
+        self._containers = containers
+        self._containers_json = json.dumps(containers, ensure_ascii=False)
+        self._containers_ts = time.time()
+
+    def get_status(self) -> dict[str, Any]:
+        return self._status
+
+    def get_status_json(self) -> str:
+        return self._status_json
+
+    def get_containers(self) -> list[dict[str, str]]:
+        return self._containers
+
+    def get_containers_json(self) -> str:
+        return self._containers_json
+
+
+cache = MetricsCache()

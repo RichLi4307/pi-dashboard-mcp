@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
@@ -10,7 +11,15 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
 
+from .collector import cache
 from .tools import list_tools, call_tool
+
+@asynccontextmanager
+async def lifespan(app):
+    cache.start()
+    yield
+    await cache.stop()
+
 
 app = Server("pi-dashboard-mcp")
 sse = SseServerTransport(
@@ -52,11 +61,12 @@ async def health(request):
 
 
 starlette_app = Starlette(
+    lifespan=lifespan,
     routes=[
         Route("/sse", endpoint=SseAsgi()),
         Mount("/messages", app=sse.handle_post_message),
         Route("/health", health),
-    ]
+    ],
 )
 
 

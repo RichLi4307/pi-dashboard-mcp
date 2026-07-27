@@ -139,6 +139,12 @@ pi-dashboard-mcp ok
 - AstrBot 容器通过 `astrbot_astrbot_network` 直接访问
 - Tailscale IP `100.118.236.1:18473` 和局域网 IP `192.168.137.10:18473` 由 `nftables` DNAT 注入
 
+## 性能
+
+- 系统状态每 3 秒、容器列表每 6 秒后台刷新一次，结果预序列化为 JSON
+- `pi_get_system_status` / `pi_get_container_list` 不再每次调用都执行 `docker ps` / `tailscale status`，单次请求开销极低
+- IPC 截图/模式切换仍实时转发，调用时仍会触发面板渲染
+
 ## 可选：systemd 托管
 
 仓库提供 `systemd/pi-dashboard-mcp.service`，可直接使用：

@@ -36,7 +36,7 @@
 ## 模块职责
 
 - `server.py`：MCP Server 入口，注册 Tools，启动 SSE
-- `collector.py`：采集系统指标
+- `collector.py`：采集系统指标，内置 `MetricsCache` 后台刷新与预序列化，避免每次 Tool 调用都读 `/proc`/`docker`/`tailscale`
 - `ipc_client.py`：与 pi_dashboard 进程通信
 - `tools.py`：Tool 定义与 handler
 - `metrics.py`（在 pi_dashboard 内）：公共数据采集逻辑
@@ -64,3 +64,12 @@ Unix socket 路径：`/run/pi_dashboard/pi_dashboard.sock`
 - MCP Server 监听 `127.0.0.1:18473`
 - 加入 `astrbot_astrbot_network`，AstrBot 容器通过容器名访问
 - Tailscale/局域网访问通过 nftables DNAT 映射
+
+## 性能设计
+
+- `MetricsCache` 在 Starlette lifespan 启动后后台运行：
+  - 系统状态每 3 秒刷新一次
+  - 容器列表每 6 秒刷新一次
+  - 刷新结果预序列化为 JSON，Tool handler 直接返回缓存字符串
+- Tool 调用不再触发 `docker ps`、`tailscale status`、`/proc/stat` 等实时采集，单次请求 CPU 占用显著降低
+- IPC 截图/模式切换仍实时转发，不经过缓存
