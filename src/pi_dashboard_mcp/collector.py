@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+import time
 from collections import defaultdict, deque
 from datetime import datetime
 from typing import Any
@@ -178,10 +179,19 @@ _cpu_sampler = CpuSampler()
 
 
 def get_system_status() -> dict[str, Any]:
+    # The sampler needs two samples to compute usage. Prime it and, if this
+    # is the first call, wait a short interval before reading the real value.
+    first = _cpu_sampler.read()
+    if first and all(v == 0.0 for v in first.values()):
+        time.sleep(0.2)
+        cpu = _cpu_sampler.read()
+    else:
+        cpu = first
+
     return {
         "timestamp": datetime.now().isoformat(),
         "hostname": os.uname().nodename,
-        "cpu": _cpu_sampler.read(),
+        "cpu": cpu,
         "temperature": read_cpu_temp(),
         "memory": read_mem_info(),
         "disk": read_disk_usage(),
