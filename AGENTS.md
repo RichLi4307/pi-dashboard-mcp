@@ -37,7 +37,7 @@ docker compose -f deploy/docker-compose.yml up -d --build --force-recreate
 ## 端口约定
 
 - `18473`：MCP Server SSE 端口
-- IPC socket：`/run/pi_dashboard/pi_dashboard.sock`
+- IPC socket：`/var/lib/pi-dashboard/pi_dashboard.sock`
 
 ## 注意事项
 
