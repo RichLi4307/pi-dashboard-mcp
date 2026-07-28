@@ -97,6 +97,37 @@ def read_tailscale_status() -> str:
     return "Running" if '"BackendState": "Running"' in out else "Stopped"
 
 
+def _host_status_via_ipc() -> dict[str, Any]:
+    """通过 Unix socket 向宿主机 pi_dashboard 进程查询真实 IP/TS 状态。
+
+    容器内的 hostname/tailscale 只能看到容器网络，因此依赖宿主机 IPC。
+    """
+    path = os.environ.get(
+        "PI_DASHBOARD_SOCKET", "/var/lib/pi-dashboard/pi_dashboard.sock"
+    )
+    if not os.path.exists(path):
+        return {}
+    try:
+        import socket
+
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(3.0)
+            sock.connect(path)
+            sock.sendall(b'{"action": "status"}\n')
+            data = b""
+            while not data.endswith(b"\n"):
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+            resp = json.loads(data.decode("utf-8").strip())
+            if resp.get("status") == "ok":
+                return resp
+    except Exception as exc:
+        logger.warning("Host status IPC failed: %s", exc)
+    return {}
+
+
 def get_ip_list() -> list[str]:
     out = _run(["hostname", "-I"])
     if not out:
@@ -281,6 +312,8 @@ class MetricsCache:
         self._status_ts = time.time()
 
     def _collect_status(self) -> dict[str, Any]:
+        # IP/Tailscale 必须走宿主机 IPC，容器网络/命名空间读不到正确值
+        host_status = _host_status_via_ipc()
         return {
             "timestamp": datetime.now().isoformat(),
             "hostname": os.uname().nodename,
@@ -288,8 +321,8 @@ class MetricsCache:
             "temperature": read_cpu_temp(),
             "memory": read_mem_info(),
             "disk": read_disk_usage(),
-            "ips": get_ip_list(),
-            "tailscale": read_tailscale_status(),
+            "ips": host_status.get("ips", get_ip_list()),
+            "tailscale": host_status.get("tailscale", read_tailscale_status()),
         }
 
     async def _refresh_containers(self) -> None:

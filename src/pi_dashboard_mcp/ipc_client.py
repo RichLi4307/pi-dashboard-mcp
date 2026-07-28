@@ -10,7 +10,7 @@ import socket
 logger = logging.getLogger(__name__)
 
 SOCKET_PATH = os.environ.get(
-    "PI_DASHBOARD_SOCKET", "/run/pi_dashboard/pi_dashboard.sock"
+    "PI_DASHBOARD_SOCKET", "/var/lib/pi-dashboard/pi_dashboard.sock"
 )
 
 
