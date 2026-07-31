@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from mcp.types import Tool, TextContent
+from mcp.types import ImageContent, TextContent, Tool
 
 from .collector import cache
 from .ipc_client import get_screenshot, scroll_containers, switch_mode
@@ -30,13 +30,13 @@ def list_tools() -> list[Tool]:
         ),
         Tool(
             name="pi_dashboard_switch_mode",
-            description="切换 Pi Dashboard 显示模式",
+            description="切换 Pi Dashboard 显示模式（当前仅 monitor）",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "mode": {
                         "type": "string",
-                        "enum": ["monitor", "console"],
+                        "enum": ["monitor"],
                         "description": "目标模式",
                     }
                 },
@@ -60,6 +60,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
     if name == "pi_get_dashboard_screenshot":
         data = await get_screenshot()
+        if data.get("status") == "ok" and "data" in data:
+            return [
+                ImageContent(
+                    type="image",
+                    data=data["data"],
+                    mimeType="image/png",
+                )
+            ]
         return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False))]
 
     if name == "pi_dashboard_switch_mode":
