@@ -112,8 +112,8 @@ MCP server pi-dashboard loaded successfully (3/3 successful)
 | --- | --- | --- |
 | `pi_get_system_status` | 获取 CPU、温度、内存、磁盘、IP、Tailscale 状态 | 无 |
 | `pi_get_container_list` | 获取 Docker 容器列表（名称 / 状态 / State） | 无 |
-| `pi_get_dashboard_screenshot` | 获取当前面板 PNG 截图（Base64） | 无 |
-| `pi_dashboard_switch_mode` | 切换 Pi Dashboard 显示模式 | `{"mode": "monitor"}` 或 `{"mode": "console"}` |
+| `pi_get_dashboard_screenshot` | 获取当前面板 PNG 截图；返回图片缓存路径，可调用 `send_message_to_user` 发送 | 无 |
+| `pi_dashboard_switch_mode` | 切换 Pi Dashboard 显示模式 | `{"mode": "monitor"}`，支持 `monitor/temp/cpu/mem/disk/net` |
 | `pi_dashboard_scroll_containers` | 在监控模式容器列表中向下滚动一页 | 无 |
 
 ## 测试

@@ -25,19 +25,27 @@ def list_tools() -> list[Tool]:
         ),
         Tool(
             name="pi_get_dashboard_screenshot",
-            description="获取当前 Pi Dashboard 面板截图（Base64 PNG）",
+            description=(
+                "获取当前 Pi Dashboard 面板截图（PNG）。"
+                "返回一张图片，AstrBot 会将其缓存到临时目录并展示给你。"
+                "如果用户要求查看或发送截图，请在获得图片后调用 send_message_to_user，"
+                "messages=[{\"type\": \"image\", \"path\": \"<截图缓存路径>\"}]。"
+            ),
             inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
             name="pi_dashboard_switch_mode",
-            description="切换 Pi Dashboard 显示模式（当前仅 monitor）",
+            description="切换 Pi Dashboard 显示模式",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "mode": {
                         "type": "string",
-                        "enum": ["monitor"],
-                        "description": "目标模式",
+                        "enum": ["monitor", "temp", "cpu", "mem", "disk", "net"],
+                        "description": (
+                            "目标模式：monitor（监控总览）、temp（温度）、cpu（CPU）、"
+                            "mem（内存）、disk（磁盘）、net（网络）"
+                        ),
                     }
                 },
                 "required": ["mode"],
@@ -66,7 +74,15 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                     type="image",
                     data=data["data"],
                     mimeType="image/png",
-                )
+                ),
+                TextContent(
+                    type="text",
+                    text=(
+                        "Pi Dashboard 截图已生成。AstrBot 已将图片缓存到临时目录。"
+                        "如果用户要求发送截图，请调用 send_message_to_user，"
+                        "messages=[{\"type\": \"image\", \"path\": \"<截图缓存路径>\"}]。"
+                    ),
+                ),
             ]
         return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False))]
 

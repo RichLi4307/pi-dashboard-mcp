@@ -49,7 +49,7 @@ Unix socket 路径：`/run/pi_dashboard/pi_dashboard.sock`
 请求格式：
 ```json
 {"action": "screenshot"}
-{"action": "switch_mode", "mode": "console"}
+{"action": "switch_mode", "mode": "monitor"}
 {"action": "scroll_containers"}
 ```
 

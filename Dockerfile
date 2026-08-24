@@ -10,7 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml /app/
 COPY src /app/src
 
-RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -e /app
+# 预装构建依赖，避免清华 PyPI 镜像缺少 setuptools 时构建失败
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ setuptools wheel \
+    && pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -e /app
 
 ENV PYTHONUNBUFFERED=1
 ENV MCP_PORT=18473

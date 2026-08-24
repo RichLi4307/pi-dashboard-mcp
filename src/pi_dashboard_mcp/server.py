@@ -23,7 +23,7 @@ async def lifespan(app):
 
 app = Server("pi-dashboard-mcp")
 sse = SseServerTransport(
-    "/messages",
+    "/messages/",
     security_settings=TransportSecuritySettings(
         allowed_hosts=[
             "127.0.0.1",
@@ -64,7 +64,7 @@ starlette_app = Starlette(
     lifespan=lifespan,
     routes=[
         Route("/sse", endpoint=SseAsgi()),
-        Mount("/messages", app=sse.handle_post_message),
+        Mount("/messages/", app=sse.handle_post_message),
         Route("/health", health),
     ],
 )
