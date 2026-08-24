@@ -42,7 +42,7 @@
 └─────────────────────────────┘
 ```
 
-详细设计见 [`docs/architecture.md`](docs/architecture.md)。
+详细设计见 [`docs/architecture.md`](docs/architecture.md)，变更记录见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 目录结构
 
