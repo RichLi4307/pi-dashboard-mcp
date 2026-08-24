@@ -112,9 +112,10 @@ MCP server pi-dashboard loaded successfully (3/3 successful)
 | --- | --- | --- |
 | `pi_get_system_status` | 获取 CPU、温度、内存、磁盘、IP、Tailscale 状态 | 无 |
 | `pi_get_container_list` | 获取 Docker 容器列表（名称 / 状态 / State） | 无 |
-| `pi_get_dashboard_screenshot` | 获取当前面板 PNG 截图；返回图片缓存路径，可调用 `send_message_to_user` 发送 | 无 |
+| `pi_get_dashboard_screenshot` | 获取当前面板 PNG 截图；截图持久化并返回访问 URL | 无 |
 | `pi_dashboard_switch_mode` | 切换 Pi Dashboard 显示模式 | `{"mode": "monitor"}`，支持 `monitor/temp/cpu/mem/disk/net` |
 | `pi_dashboard_scroll_containers` | 在监控模式容器列表中向下滚动一页 | 无 |
+| `pi_dashboard_cleanup_screenshots` | 清理历史截图 | `{"max_age_hours": 24, "keep_count": 100}` |
 
 ## 测试
 
@@ -139,11 +140,31 @@ pi-dashboard-mcp ok
 - AstrBot 容器通过 `astrbot_astrbot_network` 直接访问
 - Tailscale IP `100.118.236.1:18473` 和局域网 IP `192.168.137.10:18473` 由 `nftables` DNAT 注入
 
+## 截图持久化
+
+`pi_get_dashboard_screenshot` 获取的截图会持久化保存到 `/var/lib/pi-dashboard/screenshots/`（通过 compose 中已挂载的 `/var/lib/pi-dashboard` 卷），并通过 `/screenshots/{filename}` 提供 HTTP 访问。
+
+截图文件命名格式：`{YYYYMMDDhhmmss}_{uuid8}.png`
+
+可使用 `pi_dashboard_cleanup_screenshots` 清理历史截图：
+
+```json
+// 删除超过 24 小时的截图，同时只保留最近 100 张
+{"max_age_hours": 24, "keep_count": 100}
+
+// 只保留最近 50 张，不限制时长
+{"max_age_hours": 0, "keep_count": 50}
+
+// 删除超过 1 小时的截图，不限制数量
+{"max_age_hours": 1, "keep_count": 0}
+```
+
 ## 性能
 
 - 系统状态每 3 秒、容器列表每 6 秒后台刷新一次，结果预序列化为 JSON
 - `pi_get_system_status` / `pi_get_container_list` 不再每次调用都执行 `docker ps` / `tailscale status`，单次请求开销极低
 - IPC 截图/模式切换仍实时转发，调用时仍会触发面板渲染
+- 截图文件 I/O 通过线程池异步执行，避免阻塞事件循环
 
 ## 可选：systemd 托管
 

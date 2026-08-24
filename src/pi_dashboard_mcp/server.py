@@ -9,9 +9,12 @@ from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import Response
 from starlette.routing import Mount, Route
 
 from .collector import cache
+from .screenshot_store import read_screenshot_async
 from .tools import list_tools, call_tool
 
 @asynccontextmanager
@@ -60,11 +63,24 @@ async def health(request):
     return PlainTextResponse("pi-dashboard-mcp ok")
 
 
+async def serve_screenshot(request: Request):
+    """Serve a persisted screenshot by filename.
+
+    Filenames are validated to prevent directory traversal.
+    """
+    filename = request.path_params.get("filename", "")
+    data = await read_screenshot_async(filename)
+    if data is None:
+        return Response("not found", status_code=404)
+    return Response(data, media_type="image/png")
+
+
 starlette_app = Starlette(
     lifespan=lifespan,
     routes=[
         Route("/sse", endpoint=SseAsgi()),
         Mount("/messages/", app=sse.handle_post_message),
+        Route("/screenshots/{filename}", serve_screenshot),
         Route("/health", health),
     ],
 )
