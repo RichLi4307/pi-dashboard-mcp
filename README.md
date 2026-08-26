@@ -186,6 +186,22 @@ sudo systemctl enable --now pi-dashboard-mcp.service
 
 更详细的系统影响评估见 [`docs/system-impact.md`](docs/system-impact.md)。
 
+## FAQ
+
+### 截图返回成功，但 Bot 没有把图片发出来？
+
+`pi_get_dashboard_screenshot` 的返回结果中包含 `ImageContent` 和截图 URL，并会在文字提示中建议 Bot 调用 `send_message_to_user(messages=[{"type": "image", "url": "<截图URL>"}])` 发送图片。
+
+如果截图 Tool 调用成功但图片未被发送，常见原因是 **Bot 所在框架的某些插件/策略对 `send_message_to_user` 这类同会话发送工具做了限制**（例如在非主动场景下移除该工具，或限制其只能发送 plain 文字）。
+
+可排查方向：
+
+1. 检查 AstrBot 日志，确认 `send_message_to_user` 是否出现在本次请求的可用工具列表中；
+2. 确认 Bot 的 system_prompt / 工具边界策略允许在「投递已存在的媒体 URL」时使用该工具；
+3. 必要时在相关策略中将 `send_message_to_user` 设为保留，并限制其仅用于 MCP 服务返回值明确要求发送图片/文件的场景。
+
+MCP Server 本身不会移除或限制该工具；问题通常出在 Bot 框架层或插件层的工具治理策略。
+
 ## 开发
 
 - 在 Windows / Linux 开发机上修改代码并 push 到 GitHub
